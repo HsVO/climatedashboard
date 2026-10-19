@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AnomalyWatch — Climate Anomaly Explorer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Open+Sans:wght@300;400;500;600&family=Source+Code+Pro:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:     #0d1117;
+      --panel:  #161b22;
+      --border: #21262d;
+      --b2:     #30363d;
+      --text:   #c9d1d9;
+      --text2:  #e6edf3;
+      --muted:  #6e7681;
+      --hot:    #ef5350;
+      --cold:   #4fc3f7;
+      --acc:    #f0a500;
+      --green:  #3fb950;
+      --dim:    #3d444d;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: 'Open Sans', sans-serif; font-size: 15px; line-height: 1.6; overflow-x: hidden; }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 48px; height: 62px;
+      background: rgba(13,17,23,.92); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .logo-mark { width: 32px; height: 32px; }
+    .nav-wordmark { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 20px; font-weight: 800; color: var(--text2); letter-spacing: -.03em; }
+    .nav-right { display: flex; align-items: center; gap: 10px; }
+    .nav-ghost { padding: 7px 16px; border: 1px solid var(--b2); border-radius: 6px; color: var(--muted); font-family: 'Source Code Pro', monospace; font-size: 12px; letter-spacing: .04em; text-decoration: none; transition: all .15s; }
+    .nav-ghost:hover { color: var(--text); border-color: var(--dim); }
+    .nav-solid { padding: 7px 18px; background: var(--acc); color: #000; border-radius: 6px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 700; text-decoration: none; transition: all .15s; }
+    .nav-solid:hover { background: #ffb740; }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh; padding: 62px 0 0;
+      display: grid; grid-template-columns: 1fr 1fr;
+      align-items: center; gap: 0;
+      max-width: 1300px; margin: 0 auto; padding: 100px 48px 60px;
+    }
+    .hero-left { padding-right: 48px; }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(240,165,0,.1); border: 1px solid rgba(240,165,0,.25);
+      color: var(--acc); border-radius: 20px; padding: 5px 14px;
+      font-family: 'Source Code Pro', monospace; font-size: 11px;
+      letter-spacing: .1em; text-transform: uppercase; margin-bottom: 24px;
+      animation: up .6s ease both;
+    }
+    .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--acc); animation: blink 2s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .hero h1 {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: clamp(36px, 4.5vw, 58px);
+      font-weight: 800; line-height: 1.08;
+      letter-spacing: -.03em; color: var(--text2);
+      margin-bottom: 20px;
+      animation: up .7s ease .1s both;
+    }
+    .hero h1 .hl-hot  { color: var(--hot); }
+    .hero h1 .hl-cold { color: var(--cold); }
+    .hero h1 .hl-acc  { color: var(--acc); }
+    .hero-desc { font-size: 16px; color: var(--muted); line-height: 1.75; margin-bottom: 36px; max-width: 440px; animation: up .7s ease .2s both; }
+    .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; animation: up .7s ease .3s both; }
+    .btn-lg { display: inline-flex; align-items: center; gap: 8px; padding: 13px 26px; border-radius: 7px; font-weight: 600; font-size: 15px; text-decoration: none; transition: all .2s; }
+    .btn-lg.primary { background: var(--acc); color: #000; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; }
+    .btn-lg.primary:hover { background: #ffb740; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(240,165,0,.22); }
+    .btn-lg.ghost { border: 1px solid var(--b2); color: var(--text); }
+    .btn-lg.ghost:hover { border-color: var(--dim); transform: translateY(-2px); }
+
+    /* Stats row below CTA */
+    .hero-stats { display: flex; gap: 32px; margin-top: 40px; animation: up .7s ease .4s both; }
+    .hs { border-left: 2px solid var(--border); padding-left: 16px; }
+    .hs-num { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 24px; font-weight: 800; line-height: 1; color: var(--text2); }
+    .hs-num.hot  { color: var(--hot); }
+    .hs-num.cold { color: var(--cold); }
+    .hs-num.acc  { color: var(--acc); }
+    .hs-num.grn  { color: var(--green); }
+    .hs-label { font-family: 'Source Code Pro', monospace; font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; margin-top: 3px; }
+
+    @keyframes up { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+
+    /* ── HERO RIGHT: ILLUSTRATION ── */
+    .hero-right { position: relative; animation: up .8s ease .2s both; }
+    .illustration-card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 16px; padding: 28px; position: relative;
+      overflow: hidden;
+      box-shadow: 0 32px 80px rgba(0,0,0,.5);
+    }
+    .illus-glow {
+      position: absolute; top: -60px; right: -60px;
+      width: 240px; height: 240px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(240,165,0,.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .illus-glow2 {
+      position: absolute; bottom: -40px; left: -40px;
+      width: 180px; height: 180px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(79,195,247,.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* Chart in card */
+    .illus-label { font-family: 'Source Code Pro', monospace; font-size: 9px; color: var(--muted); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 12px; }
+    .illus-bars { display: flex; align-items: flex-end; gap: 3px; height: 80px; margin-bottom: 8px; }
+    .illus-bar { flex: 1; border-radius: 2px 2px 0 0; transition: opacity .2s; }
+    .illus-bar:hover { opacity: .75; }
+
+    /* Floating chips */
+    .chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 14px;
+      font-family: 'Source Code Pro', monospace; font-size: 11px;
+      position: absolute; box-shadow: 0 4px 16px rgba(0,0,0,.4);
+      animation: float 3s ease-in-out infinite;
+    }
+    .chip-dot { width: 8px; height: 8px; border-radius: 50%; }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+    .chip1 { top: -20px; right: 24px; animation-delay: 0s; }
+    .chip2 { bottom: 20px; left: -24px; animation-delay: 1s; }
+    .chip3 { top: 50%; right: -24px; transform: translateY(-50%); animation-delay: 1.8s; }
+    .chip3:hover { animation-play-state: paused; }
+
+    /* Mini map blob */
+    .mini-world { margin-top: 16px; }
+    .mini-heatrow { display: flex; gap: 2px; margin-bottom: 2px; }
+    .mhc { height: 10px; border-radius: 1px; flex: 1; }
+
+    /* Person illustration (SVG inline) */
+    .person-wrap {
+      position: absolute; bottom: -10px; right: -20px;
+      width: 140px; pointer-events: none;
+    }
+
+    /* ── DIVIDER ── */
+    .divider { height: 1px; background: var(--border); max-width: 1300px; margin: 0 auto; }
+
+    /* ── FEATURES ── */
+    .features { max-width: 1300px; margin: 0 auto; padding: 80px 48px; }
+    .sec-label { font-family: 'Source Code Pro', monospace; font-size: 10px; color: var(--acc); letter-spacing: .2em; text-transform: uppercase; margin-bottom: 12px; }
+    .sec-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: clamp(26px, 3.5vw, 40px); font-weight: 800; color: var(--text2); letter-spacing: -.02em; line-height: 1.1; margin-bottom: 12px; }
+    .sec-sub { font-size: 15px; color: var(--muted); max-width: 480px; line-height: 1.75; margin-bottom: 48px; }
+    .feat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .feat-card {
+      background: var(--panel); padding: 28px 26px;
+      position: relative; transition: background .15s;
+    }
+    .feat-card:hover { background: #1a2030; }
+    .feat-accent { position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+    .feat-icon-wrap { width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+    .feat-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 16px; font-weight: 700; color: var(--text2); margin-bottom: 8px; }
+    .feat-desc { font-size: 13px; color: var(--muted); line-height: 1.7; }
+    .feat-pill { display: inline-block; margin-top: 14px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 20px; font-family: 'Source Code Pro', monospace; font-size: 9px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+
+    /* ── DATA SECTION ── */
+    .data-sec { background: var(--panel); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 72px 48px; }
+    .data-inner { max-width: 1300px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+    .data-right { display: flex; flex-direction: column; gap: 10px; }
+    .data-row {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 18px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; transition: border-color .15s;
+      opacity: 0; transform: translateX(20px); transition: opacity .4s, transform .4s, border-color .15s;
+    }
+    .data-row.visible { opacity: 1; transform: translateX(0); }
+    .data-row:hover { border-color: var(--b2); }
+    .dr-rank { font-family: 'Source Code Pro', monospace; font-size: 11px; color: var(--muted); width: 18px; }
+    .dr-name { font-size: 14px; color: var(--text2); flex: 1; }
+    .dr-bar-wrap { width: 120px; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .dr-bar { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--acc), var(--hot)); width: 0; transition: width 1s ease; }
+    .dr-val { font-family: 'Source Code Pro', monospace; font-size: 12px; color: var(--hot); font-weight: 500; width: 46px; text-align: right; }
+
+    /* Sparkline chart */
+    .spark-wrap { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+    .spark-title { font-family: 'Source Code Pro', monospace; font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; margin-bottom: 12px; }
+    .spark-caption { display: flex; justify-content: space-between; font-family: 'Source Code Pro', monospace; font-size: 9px; color: var(--muted); margin-top: 8px; }
+    .spark-caption strong { color: var(--acc); }
+
+    /* ── CTA ── */
+    .cta-sec { max-width: 1300px; margin: 0 auto; padding: 100px 48px; display: grid; grid-template-columns: 1fr auto; gap: 60px; align-items: center; }
+    .cta-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: clamp(28px, 4vw, 44px); font-weight: 800; color: var(--text2); letter-spacing: -.02em; line-height: 1.1; margin-bottom: 14px; }
+    .cta-desc { font-size: 15px; color: var(--muted); line-height: 1.75; max-width: 500px; }
+    .cta-right { display: flex; flex-direction: column; gap: 10px; align-items: flex-end; flex-shrink: 0; }
+
+    /* ── FOOTER ── */
+    footer { border-top: 1px solid var(--border); padding: 20px 48px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; font-family: 'Source Code Pro', monospace; font-size: 11px; color: var(--muted); }
+    footer a { color: var(--acc); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+    footer strong { color: var(--text); }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 960px) {
+      nav { padding: 0 20px; }
+      .hero { grid-template-columns: 1fr; padding: 100px 24px 48px; }
+      .hero-left { padding-right: 0; }
+      .hero-right { display: none; }
+      .hero-stats { flex-wrap: wrap; gap: 20px; }
+      .features, .cta-sec { padding: 60px 24px; }
+      .data-sec { padding: 60px 24px; }
+      .data-inner { grid-template-columns: 1fr; gap: 40px; }
+      .feat-grid { grid-template-columns: 1fr 1fr; }
+      .cta-sec { grid-template-columns: 1fr; gap: 28px; }
+      .cta-right { align-items: flex-start; flex-direction: row; flex-wrap: wrap; }
+      footer { padding: 18px 24px; }
+    }
+    @media (max-width: 600px) {
+      .feat-grid { grid-template-columns: 1fr; }
+      .hero-stats { gap: 16px; }
+      .hs-num { font-size: 20px; }
+    }
+
+    /* ── DATASET OVERVIEW ── */
+    .dataset-overview { padding: 80px 48px; background: var(--bg); }
+    .dataset-inner { max-width: 1100px; margin: 0 auto; }
+    .dataset-header { margin-bottom: 48px; }
+
+    .ds-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2px; background: var(--border);
+      border: 1px solid var(--border); border-radius: 10px;
+      overflow: hidden; margin-bottom: 2px;
+    }
+    .ds-card {
+      background: var(--panel); padding: 26px 24px;
+      transition: background .15s;
+    }
+    .ds-card:hover { background: #1a2030; }
+    .ds-card-wide { grid-column: span 2; }
+    .ds-card-icon {
+      width: 40px; height: 40px; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 14px;
+    }
+    .ds-card-title {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 15px; font-weight: 700;
+      color: var(--text2); margin-bottom: 10px;
+    }
+    .ds-card-desc {
+      font-size: 13px; color: var(--muted);
+      line-height: 1.75;
+    }
+
+    /* Stats strip */
+    .ds-stats {
+      display: grid; grid-template-columns: repeat(5, 1fr);
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 10px; overflow: hidden; margin-top: 14px;
+    }
+    .ds-stat {
+      padding: 24px 20px; text-align: center;
+      border-right: 1px solid var(--border);
+    }
+    .ds-stat:last-child { border-right: none; }
+    .ds-stat-num {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 30px; font-weight: 800;
+      line-height: 1; letter-spacing: -.02em; margin-bottom: 6px;
+    }
+    .ds-stat-label {
+      font-family: 'Source Code Pro', monospace;
+      font-size: 9px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .1em; line-height: 1.5;
+    }
+
+    @media (max-width: 900px) {
+      .dataset-overview { padding: 60px 24px; }
+      .ds-grid { grid-template-columns: 1fr 1fr; }
+      .ds-card-wide { grid-column: span 2; }
+      .ds-stats { grid-template-columns: repeat(3, 1fr); }
+      .ds-stat:nth-child(3) { border-right: none; }
+      .ds-stat:nth-child(4) { border-top: 1px solid var(--border); }
+      .ds-stat:nth-child(5) { border-top: 1px solid var(--border); border-right: none; }
+    }
+    @media (max-width: 560px) {
+      .ds-grid { grid-template-columns: 1fr; }
+      .ds-card-wide { grid-column: span 1; }
+      .ds-stats { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="/">
+    <svg class="logo-mark" viewBox="0 0 32 32" fill="none">
+      <circle cx="16" cy="16" r="15" stroke="#30363d" stroke-width="1.5"/>
+      <path d="M4 16 Q10 8 16 16 Q22 24 28 16" stroke="#f0a500" stroke-width="2" stroke-linecap="round" fill="none"/>
+      <circle cx="16" cy="16" r="3" fill="#ef5350"/>
+    </svg>
+    <span class="nav-wordmark">AnomalyWatch</span>
+  </a>
+  <div class="nav-right">
+    <a class="nav-ghost" href="#features">Features</a>
+    <a class="nav-ghost" href="/dataset/">Dataset</a>
+    <a class="nav-solid" href="/dashboard/">Open Dashboard &rarr;</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-left">
+    <div class="hero-badge">
+      <span class="badge-dot"></span>
+      FAO Temperature Change · 1961–2019
+    </div>
+    <h1>
+      Climate<br>
+      <span class="hl-hot">Anomaly</span><br>
+      <span class="hl-cold">Explorer</span>
+    </h1>
+    <p class="hero-desc">
+      Explore 59 years of global temperature data across 248 countries.
+      Six interactive visualizations, AI-powered explanations, and a full dataset viewer — all in one dashboard.
+    </p>
+    <div class="hero-actions">
+      <a class="btn-lg primary" href="/dashboard/">
+        Open Dashboard
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+      <a class="btn-lg ghost" href="/dataset/">Browse Data</a>
+    </div>
+    <div class="hero-stats">
+      <div class="hs">
+        <div class="hs-num acc">9,656</div>
+        <div class="hs-label">Data Rows</div>
+      </div>
+      <div class="hs">
+        <div class="hs-num cold">248</div>
+        <div class="hs-label">Countries</div>
+      </div>
+      <div class="hs">
+        <div class="hs-num hot">+1.5°C</div>
+        <div class="hs-label">By 2019</div>
+      </div>
+      <div class="hs">
+        <div class="hs-num grn">59 yrs</div>
+        <div class="hs-label">Coverage</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ILLUSTRATION CARD -->
+  <div class="hero-right">
+    <div style="position:relative">
+
+      <!-- Floating chips -->
+      <div class="chip chip1">
+        <span class="chip-dot" style="background:var(--hot)"></span>
+        <span style="color:var(--text2);font-weight:500">+1.93°C</span>
+        <span style="color:var(--muted)">Finland</span>
+      </div>
+      <div class="chip chip2">
+        <span class="chip-dot" style="background:var(--cold)"></span>
+        <span style="color:var(--muted)">Baseline</span>
+        <span style="color:var(--text2);font-weight:500">1951–1980</span>
+      </div>
+      <div class="chip chip3" style="top:30%;right:-32px;position:absolute">
+        <span class="chip-dot" style="background:var(--green)"></span>
+        <span style="color:var(--text2);font-weight:500">208</span>
+        <span style="color:var(--muted)">Countries</span>
+      </div>
+
+      <div class="illustration-card">
+        <div class="illus-glow"></div>
+        <div class="illus-glow2"></div>
+
+        <!-- Bar chart illustration -->
+        <div class="illus-label">Annual Temperature Anomaly · Philippines</div>
+        <div class="illus-bars" id="illus-bars"></div>
+        <div style="display:flex;justify-content:space-between;font-family:'Source Code Pro',monospace;font-size:9px;color:var(--muted);margin-bottom:20px">
+          <span>1961</span><span style="color:var(--acc);font-weight:500">+1.50°C in 2019</span><span>2019</span>
+        </div>
+
+        <!-- Heatmap rows illustration -->
+        <div class="illus-label" style="margin-top:4px">Monthly Heatmap</div>
+        <div id="illus-heatmap"></div>
+
+
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- FEATURES -->
+<section class="features" id="features">
+  <div class="sec-label">What's inside</div>
+  <h2 class="sec-title">Six visualization panels,<br>built from real FAO data</h2>
+  <p class="sec-sub">Each panel is interactive and includes a <strong style="color:var(--text)">?</strong> button that triggers an AI explanation tailored to the current country, year, and mode you're viewing.</p>
+  <div class="feat-grid">
+    <div class="feat-card">
+      <div class="feat-accent" style="background:var(--cold)"></div>
+      <div class="feat-icon-wrap">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="9" stroke="var(--cold)" stroke-width="1.5"/><ellipse cx="11" cy="11" rx="4" ry="9" stroke="var(--cold)" stroke-width="1" opacity=".5"/><line x1="2" y1="11" x2="20" y2="11" stroke="var(--cold)" stroke-width="1" opacity=".5"/></svg>
+      </div>
+      <div class="feat-title">World Map</div>
+      <div class="feat-desc">Choropleth map showing temperature anomaly per country for any year. Drag the year slider to watch warming spread over time.</div>
+      <span class="feat-pill">1961 → 2019 slider</span>
+    </div>
+    <div class="feat-card">
+      <div class="feat-accent" style="background:var(--hot)"></div>
+      <div class="feat-icon-wrap">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="2" y="14" width="4" height="6" rx="1" fill="var(--hot)" opacity=".5"/><rect x="8" y="10" width="4" height="10" rx="1" fill="var(--hot)" opacity=".7"/><rect x="14" y="6" width="4" height="14" rx="1" fill="var(--hot)"/></svg>
+      </div>
+      <div class="feat-title">Top Warming Rankings</div>
+      <div class="feat-desc">Ranked bar chart comparing 1960s average vs 2010s. Toggle between sovereign countries only or all territories.</div>
+      <span class="feat-pill">Top 10 / 20 / 30</span>
+    </div>
+    <div class="feat-card">
+      <div class="feat-accent" style="background:var(--acc)"></div>
+      <div class="feat-icon-wrap">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><polyline points="2,16 6,10 10,13 14,6 20,8" stroke="var(--acc)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+      </div>
+      <div class="feat-title">Annual Time Series</div>
+      <div class="feat-desc">Per-country bar chart of anomaly from 1961 to 2019, with an optional linear trend line showing the rate of warming.</div>
+      <span class="feat-pill">248 countries · trend line</span>
+    </div>
+    <div class="feat-card">
+      <div class="feat-accent" style="background:var(--green)"></div>
+      <div class="feat-icon-wrap">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="2" y="2" width="4" height="4" rx=".5" fill="var(--cold)"/><rect x="7" y="2" width="4" height="4" rx=".5" fill="var(--acc)"/><rect x="12" y="2" width="4" height="4" rx=".5" fill="var(--hot)"/><rect x="2" y="7" width="4" height="4" rx=".5" fill="var(--acc)"/><rect x="7" y="7" width="4" height="4" rx=".5" fill="var(--hot)"/><rect x="12" y="7" width="4" height="4" rx=".5" fill="var(--hot)" opacity=".6"/><rect x="2" y="12" width="4" height="4" rx=".5" fill="var(--hot)" opacity=".4"/><rect x="7" y="12" width="4" height="4" rx=".5" fill="var(--hot)" opacity=".7"/><rect x="12" y="12" width="4" height="4" rx=".5" fill="var(--hot)"/></svg>
+      </div>
+      <div class="feat-title">Heatmap — 3 Modes</div>
+      <div class="feat-desc">Monthly grid, decadal averages, or regional correlation matrix — all switchable in one panel without leaving the page.</div>
+      <span class="feat-pill">Monthly · Decadal · Correlation</span>
+    </div>
+    <div class="feat-card">
+      <div class="feat-accent" style="background:#a78bfa"></div>
+      <div class="feat-icon-wrap">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><polyline points="2,14 6,8 10,11 14,5 20,9" stroke="#a78bfa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><polyline points="2,16 6,12 10,14 14,9 20,12" stroke="var(--acc)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity=".6"/></svg>
+      </div>
+      <div class="feat-title">Regional Comparison</div>
+      <div class="feat-desc">Overlay warming trends for Africa, Asia, Europe, Americas, and Oceania on one chart to compare continental trajectories.</div>
+      <span class="feat-pill">5 continental regions</span>
+    </div>
+    <div class="feat-card">
+      <div class="feat-accent" style="background:#2dd4bf"></div>
+      <div class="feat-icon-wrap">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="4" y="6" width="5" height="12" rx="1" fill="#2dd4bf" opacity=".4"/><line x1="4" y1="12" x2="9" y2="12" stroke="#2dd4bf" stroke-width="1.5"/><rect x="11" y="8" width="5" height="10" rx="1" fill="#2dd4bf" opacity=".7"/><line x1="11" y1="13" x2="16" y2="13" stroke="#2dd4bf" stroke-width="1.5"/></svg>
+      </div>
+      <div class="feat-title">Decade Box Plot</div>
+      <div class="feat-desc">Distribution of annual anomalies per decade, showing how the median and spread shift upward from the 1960s to the 2010s.</div>
+      <span class="feat-pill">1960s → 2010s</span>
+    </div>
+  </div>
+</section>
+
+
+<!-- DATASET OVERVIEW -->
+<section class="dataset-overview">
+  <div class="dataset-inner">
+    <div class="dataset-header">
+      <div class="sec-label">About the data</div>
+      <h2 class="sec-title">What is this dataset?</h2>
+      <p class="sec-sub">
+        Published by the Food and Agriculture Organization of the United Nations (FAOSTAT)
+        and shared on Kaggle by <strong style="color:var(--text)">Sevgi SY</strong> —
+        one of the most comprehensive country-level climate records available publicly.
+      </p>
+    </div>
+
+    <div class="ds-grid">
+
+      <!-- What it measures -->
+      <div class="ds-card">
+        <div class="ds-card-icon">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+            <circle cx="11" cy="11" r="9" stroke="var(--acc)" stroke-width="1.5"/>
+            <line x1="11" y1="6" x2="11" y2="11" stroke="var(--acc)" stroke-width="1.8" stroke-linecap="round"/>
+            <circle cx="11" cy="14" r="1.2" fill="var(--acc)"/>
+          </svg>
+        </div>
+        <div class="ds-card-title">What it measures</div>
+        <div class="ds-card-desc">
+          Temperature <strong style="color:var(--text)">anomaly</strong> — not actual temperature,
+          but how much warmer or cooler a location was compared to the
+          <strong style="color:var(--acc)">1951–1980 baseline</strong>.
+          A value of <span style="color:var(--hot)">+1.2°C</span> means that period was
+          1.2°C warmer than the 30-year baseline average.
+        </div>
+      </div>
+
+      <!-- Coverage -->
+      <div class="ds-card">
+        <div class="ds-card-icon">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+            <circle cx="11" cy="11" r="9" stroke="var(--cold)" stroke-width="1.5"/>
+            <ellipse cx="11" cy="11" rx="4" ry="9" stroke="var(--cold)" stroke-width="1" opacity=".5"/>
+            <line x1="2" y1="11" x2="20" y2="11" stroke="var(--cold)" stroke-width="1" opacity=".5"/>
+          </svg>
+        </div>
+        <div class="ds-card-title">Geographic coverage</div>
+        <div class="ds-card-desc">
+          <strong style="color:var(--text)">284 areas</strong> total —
+          208 sovereign countries, 40 territories, and 36 regional aggregates
+          (Africa, Asia, EU, OECD, Least Developed Countries, etc.).
+          Covers virtually every nation on Earth.
+        </div>
+      </div>
+
+      <!-- Time -->
+      <div class="ds-card">
+        <div class="ds-card-icon">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+            <rect x="2" y="4" width="18" height="15" rx="2" stroke="var(--green)" stroke-width="1.5"/>
+            <line x1="2" y1="8" x2="20" y2="8" stroke="var(--green)" stroke-width="1"/>
+            <line x1="7" y1="2" x2="7" y2="6" stroke="var(--green)" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="15" y1="2" x2="15" y2="6" stroke="var(--green)" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="ds-card-title">Time coverage</div>
+        <div class="ds-card-desc">
+          <strong style="color:var(--text)">59 years</strong> of data from
+          <strong style="color:var(--text)">1961 to 2019</strong>,
+          with <strong style="color:var(--text)">17 time periods</strong> per area per year —
+          12 individual months, 4 seasons (DJF, MAM, JJA, SON),
+          and 1 full meteorological year.
+        </div>
+      </div>
+
+      <!-- Elements -->
+      <div class="ds-card">
+        <div class="ds-card-icon">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+            <polyline points="2,16 6,9 10,13 14,5 20,8" stroke="#a78bfa" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+        </div>
+        <div class="ds-card-title">Two data elements</div>
+        <div class="ds-card-desc">
+          <strong style="color:var(--text)">Temperature change</strong> — the core warming signal used in all visualizations.
+          <strong style="color:var(--text)">Standard Deviation</strong> — the uncertainty measure for each reading.
+          Together: <strong style="color:var(--text)">569,704 rows</strong> in long format.
+        </div>
+      </div>
+
+      <!-- Why it matters -->
+      <div class="ds-card ds-card-wide">
+        <div class="ds-card-icon">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+            <path d="M11 2L13.5 8H20L14.5 12L16.5 18L11 14.5L5.5 18L7.5 12L2 8H8.5Z" stroke="var(--acc)" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="ds-card-title">Why it matters</div>
+        <div class="ds-card-desc">
+          This is one of the most comprehensive <strong style="color:var(--text)">country-level climate records</strong>
+          available publicly. It's used to study which countries are warming fastest,
+          how warming varies by season, whether different regions warm in sync,
+          and to build data-grounded projections. The dataset directly supports
+          IPCC findings on global warming acceleration since the 1980s.
+        </div>
+      </div>
+
+      <!-- Format -->
+      <div class="ds-card">
+        <div class="ds-card-icon">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+            <rect x="2" y="3" width="18" height="16" rx="2" stroke="#2dd4bf" stroke-width="1.5"/>
+            <line x1="2" y1="8" x2="20" y2="8" stroke="#2dd4bf" stroke-width="1" opacity=".6"/>
+            <line x1="2" y1="13" x2="20" y2="13" stroke="#2dd4bf" stroke-width="1" opacity=".6"/>
+            <line x1="8" y1="3" x2="8" y2="19" stroke="#2dd4bf" stroke-width="1" opacity=".6"/>
+          </svg>
+        </div>
+        <div class="ds-card-title">Data format</div>
+        <div class="ds-card-desc">
+          Transformed from wide format (9,656 rows × 66 cols) to
+          <strong style="color:var(--text)">long format</strong> (569,704 rows × 9 cols)
+          for faster querying. Each row = one area, one month, one year, one value.
+          Browse every row in the <a href="/dataset/" style="color:var(--acc)">Dataset Viewer</a>.
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Stats strip -->
+    <div class="ds-stats">
+      <div class="ds-stat">
+        <div class="ds-stat-num" style="color:var(--acc)">569,704</div>
+        <div class="ds-stat-label">Total rows</div>
+      </div>
+      <div class="ds-stat">
+        <div class="ds-stat-num" style="color:var(--cold)">284</div>
+        <div class="ds-stat-label">Areas tracked</div>
+      </div>
+      <div class="ds-stat">
+        <div class="ds-stat-num" style="color:var(--green)">59</div>
+        <div class="ds-stat-label">Years covered</div>
+      </div>
+      <div class="ds-stat">
+        <div class="ds-stat-num" style="color:var(--hot)">17</div>
+        <div class="ds-stat-label">Time periods / area / year</div>
+      </div>
+      <div class="ds-stat">
+        <div class="ds-stat-num" style="color:#a78bfa">2</div>
+        <div class="ds-stat-label">Measured elements</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- DATA SECTION -->
+<section class="data-sec">
+  <div class="data-inner">
+    <div>
+      <div class="sec-label">Real data</div>
+      <h2 class="sec-title">Top 5 most warmed<br>sovereign countries</h2>
+      <p style="font-size:14px;color:var(--muted);line-height:1.75;margin-top:12px;margin-bottom:28px">
+        Comparing average annual anomaly in the <strong style="color:var(--text)">1960s</strong> versus the <strong style="color:var(--text)">2010s</strong>. Values are °C above the 1951–1980 baseline.
+      </p>
+      <div class="spark-wrap">
+        <div class="spark-title">Global avg anomaly (°C) · 1961–2019</div>
+        <canvas id="sparkline" height="72"></canvas>
+        <div class="spark-caption">
+          <span>1961</span>
+          <strong>+1.50°C by 2019</strong>
+          <span>2019</span>
+        </div>
+      </div>
+    </div>
+    <div class="data-right" id="warmer-list"></div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div>
+    <strong>AnomalyWatch</strong> &nbsp;&middot;&nbsp;
+    Data: <a href="https://www.kaggle.com/datasets/sevgisarac/temperature-change" target="_blank">Kaggle / Sevgi SY</a> &nbsp;&middot;&nbsp;
+    Source: <a href="https://www.fao.org/faostat" target="_blank">FAOSTAT</a>
+  </div>
+  <div>Baseline <strong>1951–1980</strong> &middot; Unit <strong>°C deviation</strong></div>
+</footer>
+
+<script>
+const TREND = [[1961,.215],[1962,.062],[1963,.114],[1964,-.225],[1965,-.179],[1966,.171],[1967,-.111],[1968,-.139],[1969,-.093],[1970,.135],[1971,-.064],[1972,-.138],[1973,.354],[1974,-.186],[1975,.116],[1976,-.353],[1977,.235],[1978,.021],[1979,.264],[1980,.376],[1981,.423],[1982,.098],[1983,.469],[1984,.083],[1985,.0],[1986,.244],[1987,.331],[1988,.592],[1989,.321],[1990,.643],[1991,.499],[1992,.196],[1993,.376],[1994,.461],[1995,.821],[1996,.4],[1997,.63],[1998,.931],[1999,.74],[2000,.679],[2001,.769],[2002,1.01],[2003,.877],[2004,.904],[2005,1.128],[2006,.913],[2007,1.215],[2008,.957],[2009,.987],[2010,1.121],[2011,.856],[2012,.978],[2013,1.089],[2014,1.114],[2015,1.391],[2016,1.621],[2017,1.419],[2018,1.326],[2019,1.503]];
+const PHIL  = [-.134,-.097,-.33,-.021,-.288,-.138,-.209,-.281,-.117,-.086,-.208,-.002,.377,-.186,.116,-.353,.235,.021,.264,.376,.423,.098,.469,.083,.0,.244,.331,.592,.321,.643,.499,.196,.376,.461,.821,.4,.63,.931,.74,.679,.769,1.01,.877,.904,1.128,.913,1.215,.957,.987,1.121,.856,.978,1.089,1.114,1.391,1.621,1.419,1.326,1.503];
+const TOP5  = [{name:'Finland',delta:1.93},{name:'Austria',delta:1.89},{name:'Bahrain',delta:1.84},{name:'Kuwait',delta:1.83},{name:'Hungary',delta:1.77}];
+
+// ── Illustration bars ──
+(function(){
+  const c = document.getElementById('illus-bars');
+  if(!c) return;
+  const max = Math.max(...PHIL.map(Math.abs));
+  PHIL.forEach(v=>{
+    const b = document.createElement('div');
+    b.className = 'illus-bar';
+    b.style.height = (Math.abs(v)/max*100)+'%';
+    b.style.background = v>=0?'rgba(239,83,80,.75)':'rgba(79,195,247,.75)';
+    c.appendChild(b);
+  });
+})();
+
+// ── Illustration heatmap ──
+(function(){
+  const c = document.getElementById('illus-heatmap');
+  if(!c) return;
+  const months = 12, decades = 6;
+  const vals = [
+    [-.21,.10,.35,.55,.71,.86],[-.25,.14,.45,.52,.78,.82],[-.18,.08,.38,.61,.72,.91],
+    [-.12,.05,.42,.58,.69,.88],[-.09,.11,.36,.54,.74,.93],[-.15,.07,.32,.49,.68,.85],
+    [-.22,.03,.28,.51,.65,.79],[-.19,.06,.31,.53,.67,.82],[-.16,.09,.34,.57,.71,.87],
+    [-.11,.12,.39,.62,.76,.94],[-.14,.08,.37,.58,.73,.89],[-.20,.11,.40,.56,.70,.88]
+  ];
+  const grid = document.createElement('div');
+  grid.style.cssText='display:grid;grid-template-columns:repeat('+decades+',1fr);gap:2px;';
+  vals.forEach(row=>{
+    row.forEach(v=>{
+      const cell=document.createElement('div');
+      cell.style.cssText='height:12px;border-radius:1px;';
+      let r,g,b;
+      if(v<0){const t=Math.min(1,-v/.4);r=Math.round(13+43*t);g=Math.round(20+169*t);b=Math.round(23+225*t);}
+      else{const t=Math.min(1,v/.9);r=Math.round(22+217*t);g=Math.round(107-60*t);b=Math.round(163-143*t);}
+      cell.style.background=`rgb(${r},${g},${b})`;
+      grid.appendChild(cell);
+    });
+  });
+  c.appendChild(grid);
+})();
+
+// ── Sparkline ──
+(function(){
+  const canvas=document.getElementById('sparkline');
+  if(!canvas) return;
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.parentElement.clientWidth-40||560, H=72;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+  const vals=TREND.map(t=>t[1]);
+  const mn=Math.min(...vals), mx=Math.max(...vals);
+  const p={l:4,r:4,t:6,b:6};
+  const iw=W-p.l-p.r, ih=H-p.t-p.b;
+  const xp=i=>p.l+(i/(vals.length-1))*iw;
+  const yp=v=>p.t+ih-((v-mn)/(mx-mn))*ih;
+
+  // Zero line
+  const y0=yp(0);
+  ctx.beginPath(); ctx.strokeStyle='rgba(255,255,255,.07)'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+  ctx.moveTo(p.l,y0); ctx.lineTo(W-p.r,y0); ctx.stroke(); ctx.setLineDash([]);
+
+  // Fill
+  const grad=ctx.createLinearGradient(0,p.t,0,H);
+  grad.addColorStop(0,'rgba(240,165,0,.25)'); grad.addColorStop(1,'rgba(240,165,0,0)');
+  ctx.beginPath(); ctx.moveTo(xp(0),yp(vals[0]));
+  vals.forEach((_,i)=>{ if(i>0) ctx.lineTo(xp(i),yp(vals[i])); });
+  ctx.lineTo(xp(vals.length-1),H); ctx.lineTo(xp(0),H); ctx.closePath();
+  ctx.fillStyle=grad; ctx.fill();
+
+  // Line
+  ctx.beginPath(); ctx.strokeStyle='#f0a500'; ctx.lineWidth=1.8; ctx.lineJoin='round';
+  ctx.moveTo(xp(0),yp(vals[0]));
+  vals.forEach((_,i)=>{ if(i>0) ctx.lineTo(xp(i),yp(vals[i])); });
+  ctx.stroke();
+
+  // End dot
+  const lx=xp(vals.length-1),ly=yp(vals[vals.length-1]);
+  ctx.beginPath(); ctx.arc(lx,ly,4,0,Math.PI*2);
+  ctx.fillStyle='#ef5350'; ctx.fill();
+})();
+
+// ── Top warmers ──
+(function(){
+  const c=document.getElementById('warmer-list');
+  const maxD=TOP5[0].delta;
+  TOP5.forEach((item,i)=>{
+    const row=document.createElement('div');
+    row.className='data-row';
+    row.style.transitionDelay=(i*.1)+'s';
+    row.innerHTML=`
+      <span class="dr-rank">${i+1}</span>
+      <span class="dr-name">${item.name}</span>
+      <div class="dr-bar-wrap"><div class="dr-bar" data-w="${(item.delta/maxD*100).toFixed(1)}"></div></div>
+      <span class="dr-val">+${item.delta}°</span>`;
+    c.appendChild(row);
+  });
+})();
+
+// ── Feat card initial state (set BEFORE observer so inline overrides CSS) ──
+document.querySelectorAll('.feat-card').forEach((c,i)=>{
+  c.style.opacity='0';
+  c.style.transform='translateY(16px)';
+  c.style.transition='opacity .45s '+i*.08+'s ease, transform .45s '+i*.08+'s ease, background .15s';
+});
+
+// ── Scroll animations ──
+const obs=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      requestAnimationFrame(()=>{
+        e.target.style.opacity='1';
+        e.target.style.transform='translateY(0)';
+        e.target.classList.add('visible');
+        e.target.querySelectorAll('.dr-bar[data-w]').forEach(b=>{ setTimeout(()=>b.style.width=b.dataset.w+'%',200); });
+      });
+      obs.unobserve(e.target);
+    }
+  });
+},{threshold:.05,rootMargin:'0px 0px -20px 0px'});
+document.querySelectorAll('.data-row, .feat-card').forEach(el=>obs.observe(el));
+</script>
+</body>
+</html>

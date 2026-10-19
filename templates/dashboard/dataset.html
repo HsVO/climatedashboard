@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dataset Viewer — AnomalyWatch</title>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&family=Source+Code+Pro:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+  <style>
+    /* ── DATASET-SPECIFIC STYLES ── */
+    .wrap { max-width: 1440px; margin: 0 auto; padding: 20px 24px; }
+
+    .info-bar {
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+      padding: 14px 20px; margin-bottom: 14px; box-shadow: 0 1px 4px var(--shadow);
+    }
+    .info-bar-left { display: flex; gap: 28px; flex-wrap: wrap; }
+    .info-stat { font-family: 'Source Code Pro', monospace; font-size: 11px; color: var(--muted); line-height: 1.6; }
+    .info-stat strong { color: var(--accent); font-size: 16px; display: block; }
+    .total-count { font-family: 'Source Code Pro', monospace; font-size: 12px; color: var(--muted); white-space: nowrap; }
+    .total-count span { color: var(--text); font-weight: 600; }
+
+    .filters {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px 18px; margin-bottom: 14px; box-shadow: 0 1px 4px var(--shadow);
+    }
+    .filter-label { font-family: 'Source Code Pro', monospace; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; white-space: nowrap; }
+    input[type=text] { width: 200px; }
+
+    .table-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px var(--shadow); }
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-family: 'Source Code Pro', monospace; font-size: 12px; min-width: 800px; }
+    thead { position: sticky; top: 0; z-index: 10; }
+    thead tr { background: var(--th-bg); }
+    th { padding: 10px 14px; text-align: center; font-size: 10px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border2); white-space: nowrap; }
+    td { padding: 8px 14px; border-bottom: 1px solid var(--td-border); color: var(--text); white-space: nowrap; text-align: center; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--row-hover); }
+    .td-num  { color: var(--accent); text-align: center; }
+    .td-pos  { color: var(--hot); text-align: center; }
+    .td-neg  { color: var(--cold); text-align: center; }
+    .td-area { color: var(--text2); font-weight: 500; }
+    .td-muted{ color: var(--muted); }
+
+    .pagination {
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+      padding: 12px 18px; border-top: 1px solid var(--border);
+      font-family: 'Source Code Pro', monospace; font-size: 11px; color: var(--muted);
+    }
+    .page-btns { display: flex; gap: 5px; flex-wrap: wrap; }
+    .page-btn {
+      padding: 5px 11px; border: 1px solid var(--border2); border-radius: 4px;
+      background: transparent; color: var(--muted);
+      font-family: 'Source Code Pro', monospace; font-size: 11px;
+      cursor: pointer; transition: all .15s;
+    }
+    .page-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .page-btn:disabled { opacity: .3; cursor: default; }
+    .page-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .loading-row td { color: var(--muted); text-align: center; padding: 32px; }
+
+    @media (max-width: 640px) {
+      .wrap { padding: 12px 14px; }
+      .info-bar-left { gap: 16px; }
+      .filters { gap: 8px; }
+      input[type=text] { width: 140px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-dot"></div>
+    <h1>AnomalyWatch — Dataset Viewer</h1>
+  </div>
+  <div class="header-right">
+    <a class="nav-link" href="/">Dashboard</a>
+    <div class="theme-wrap">
+      <span class="theme-lbl" id="theme-lbl">Dark</span>
+      <button class="theme-toggle" onclick="toggleTheme()"></button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="info-bar">
+    <div class="info-bar-left">
+      <div class="info-stat"><strong>9,656</strong>Total rows</div>
+      <div class="info-stat"><strong>66</strong>Columns</div>
+      <div class="info-stat"><strong>284</strong>Areas</div>
+      <div class="info-stat"><strong>17</strong>Time periods</div>
+      <div class="info-stat"><strong>2</strong>Elements</div>
+    </div>
+    <div class="total-count">Showing <span id="showing-count">—</span> of <span id="total-count">—</span> rows</div>
+  </div>
+
+  <div class="filters">
+    <span class="filter-label">Filter</span>
+    <input type="text" id="search-input" placeholder="Search country...">
+    <select id="filter-area"><option value="">All Areas</option></select>
+    <select id="filter-month"><option value="">All Months</option></select>
+    <select id="filter-element"><option value="">All Elements</option></select>
+    <select id="per-page-sel">
+      <option value="25">25 / page</option>
+      <option value="50" selected>50 / page</option>
+      <option value="100">100 / page</option>
+    </select>
+    <button class="btn primary" onclick="applyFilters()">Apply</button>
+    <button class="btn" onclick="resetFilters()">Reset</button>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-scroll">
+      <table id="data-table">
+        <thead id="table-head"></thead>
+        <tbody id="table-body"><tr class="loading-row"><td colspan="15">Loading dataset...</td></tr></tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <span id="page-info">Page 1</span>
+      <div class="page-btns" id="page-btns"></div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <div class="credits">
+    <div><strong>Dataset</strong> &nbsp;FAO — Environment Statistics: Temperature Change</div>
+    <div><strong>Kaggle</strong> &nbsp;<a href="https://www.kaggle.com/datasets/sevgisarac/temperature-change" target="_blank">kaggle.com/datasets/sevgisarac/temperature-change</a> &nbsp;&middot;&nbsp; Published by <strong>Sevgi SY</strong> (sevgisarac)</div>
+  </div>
+  <div class="credits" style="text-align:right">
+    <div>Original source: <strong>FAOSTAT</strong> &middot; fao.org/faostat</div>
+    <div>Baseline period: <strong>1951–1980</strong> &middot; Unit: <strong>&deg;C deviation from baseline</strong></div>
+  </div>
+</footer>
+
+<script>
+let isDark = true;
+function toggleTheme() {
+  isDark = !isDark;
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  document.getElementById('theme-lbl').textContent = isDark ? 'Dark' : 'Light';
+}
+
+async function initFilters() {
+  const r = await fetch('/api/dataset/?page=1&per_page=1');
+  const d = await r.json();
+  const areaEl = document.getElementById('filter-area');
+  d.areas.forEach(a => { const o=document.createElement('option'); o.value=a; o.textContent=a; areaEl.appendChild(o); });
+  const monthEl = document.getElementById('filter-month');
+  d.months.forEach(m => { const o=document.createElement('option'); o.value=m; o.textContent=m; monthEl.appendChild(o); });
+  loadPage(1);
+}
+function getParams() {
+  return { area:document.getElementById('filter-area').value, month:document.getElementById('filter-month').value, element:document.getElementById('filter-element').value, search:document.getElementById('search-input').value, per_page:document.getElementById('per-page-sel').value };
+}
+function applyFilters() { loadPage(1); }
+function resetFilters() {
+  document.getElementById('search-input').value='';
+  document.getElementById('filter-area').value='';
+  document.getElementById('filter-month').value='';
+  document.getElementById('filter-element').value='';
+  loadPage(1);
+}
+async function loadPage(page) {
+  document.getElementById('table-body').innerHTML='<tr class="loading-row"><td colspan="20">Loading...</td></tr>';
+  const p=getParams();
+  const params=new URLSearchParams({page, per_page:p.per_page, area:p.area, month:p.month, element:p.element, search:p.search});
+  const r=await fetch('/api/dataset/?'+params);
+  const d=await r.json();
+  document.getElementById('total-count').textContent=d.total.toLocaleString();
+  document.getElementById('showing-count').textContent=((page-1)*d.per_page+1)+'–'+Math.min(page*d.per_page,d.total);
+  document.getElementById('page-info').textContent='Page '+page+' of '+d.pages;
+  document.getElementById('table-head').innerHTML='<tr>'+d.columns.map(c=>'<th>'+c+'</th>').join('')+'</tr>';
+  const tbody=document.getElementById('table-body');
+  if(!d.rows.length){ tbody.innerHTML='<tr class="loading-row"><td colspan="'+d.columns.length+'">No results found.</td></tr>'; }
+  else {
+    tbody.innerHTML=d.rows.map(row=>'<tr>'+row.map((v,i)=>{
+      const col=d.columns[i]; let cls='';
+      if(col==='Area') cls='td-area';
+      else if(['Area Code','Months Code','Element Code','Unit'].includes(col)) cls='td-muted';
+      else if(col.startsWith('Y')){ const n=parseFloat(v); if(!isNaN(n)&&v!=='—') cls=n>=0?'td-pos':'td-neg'; }
+      return '<td class="'+cls+'">'+v+'</td>';
+    }).join('')+'</tr>').join('');
+  }
+  buildPagination(page,d.pages);
+}
+function buildPagination(current,total) {
+  const el=document.getElementById('page-btns'); let btns=[];
+  btns.push({label:'Prev',page:current-1,disabled:current<=1});
+  let start=Math.max(1,current-2),end=Math.min(total,current+2);
+  if(start>1){btns.push({label:'1',page:1}); if(start>2)btns.push({label:'...',page:null});}
+  for(let p=start;p<=end;p++) btns.push({label:String(p),page:p,active:p===current});
+  if(end<total){if(end<total-1)btns.push({label:'...',page:null}); btns.push({label:String(total),page:total});}
+  btns.push({label:'Next',page:current+1,disabled:current>=total});
+  el.innerHTML=btns.map(b=>{ if(b.page===null) return '<span style="padding:5px;color:var(--muted)">...</span>'; return '<button class="page-btn'+(b.active?' active':'')+(b.disabled?' disabled':'')+'"'+(b.disabled?' disabled':'')+' onclick="loadPage('+b.page+')">'+b.label+'</button>'; }).join('');
+}
+document.getElementById('search-input').addEventListener('keydown',e=>{if(e.key==='Enter') applyFilters();});
+initFilters();
+</script>
+</body>
+</html>

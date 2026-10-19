@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AnomalyWatch — Climate Anomaly Explorer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&family=Source+Code+Pro:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="{% static 'js/plotly.min.js' %}"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    [data-theme="dark"] {
+      --bg:#0d1117; --bg2:#0a0e14; --panel:#161b22; --border:#21262d; --border2:#30363d;
+      --text:#c9d1d9; --text2:#e6edf3; --muted:#6e7681; --dim:#3d444d;
+      --hot:#ef5350; --cold:#4fc3f7; --accent:#f0a500; --green:#3fb950;
+      --shadow:rgba(0,0,0,.4); --row-hover:rgba(255,255,255,.025);
+      --explain-bg:#0d1f0d; --explain-border:#1a3a1a; --explain-text:#a8d5a2;
+      --explain-ph-bg:#1a1a2e; --explain-ph-border:#2a2a4a; --explain-ph-text:#8888bb;
+    }
+    [data-theme="light"] {
+      --bg:#f6f8fa; --bg2:#ffffff; --panel:#ffffff; --border:#d0d7de; --border2:#b1bac4;
+      --text:#24292f; --text2:#1f2328; --muted:#656d76; --dim:#afb8c1;
+      --hot:#cf222e; --cold:#0969da; --accent:#9a6700; --green:#1a7f37;
+      --shadow:rgba(0,0,0,.08); --row-hover:rgba(0,0,0,.02);
+      --explain-bg:#f0fff0; --explain-border:#c8e6c8; --explain-text:#2d6a2d;
+      --explain-ph-bg:#f0f0ff; --explain-ph-border:#c8c8e6; --explain-ph-text:#555588;
+    }
+    html,body { background:var(--bg); color:var(--text); font-family:'Open Sans',sans-serif; font-size:15px; line-height:1.55; }
+
+    /* ── HEADER ── */
+    header {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:0 28px; height:54px; border-bottom:1px solid var(--border);
+      background:var(--panel); box-shadow:0 1px 0 var(--shadow);
+      position:sticky; top:0; z-index:100;
+    }
+    .brand { display:flex; align-items:center; gap:12px; }
+    .brand-dot { width:9px; height:9px; border-radius:50%; background:linear-gradient(135deg,var(--cold),var(--hot)); flex-shrink:0; }
+    .brand h1 { font-family:'Source Code Pro',monospace; font-size:13px; font-weight:500; color:var(--text2); letter-spacing:.02em; }
+    .brand sub { font-size:10px; color:var(--muted); margin-left:10px; font-family:'Source Code Pro',monospace; font-weight:300; }
+    .header-right { display:flex; align-items:center; gap:14px; }
+    .header-meta { font-family:'Source Code Pro',monospace; font-size:9px; color:var(--muted); text-align:right; line-height:1.9; }
+    .header-meta strong { color:var(--accent); }
+
+    .nav-link { font-family:'Source Code Pro',monospace; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); text-decoration:none; padding:5px 10px; border:1px solid var(--border2); border-radius:4px; transition:all .15s; }
+    .nav-link:hover { color:var(--text); border-color:var(--dim); }
+
+    .scope-toggle { display:flex; border:1px solid var(--border2); border-radius:5px; overflow:hidden; }
+    .scope-btn { padding:5px 11px; font-family:'Source Code Pro',monospace; font-size:10px; cursor:pointer; border:none; background:transparent; color:var(--muted); letter-spacing:.06em; text-transform:uppercase; transition:all .15s; }
+    .scope-btn:first-child { border-right:1px solid var(--border2); }
+    .scope-btn.active { background:var(--accent); color:#fff; font-weight:600; }
+    .scope-btn:not(.active):hover { background:rgba(128,128,128,.08); color:var(--text); }
+
+    .theme-wrap { display:flex; align-items:center; gap:6px; }
+    .theme-lbl { font-family:'Source Code Pro',monospace; font-size:9px; color:var(--muted); letter-spacing:.08em; }
+    .theme-toggle { width:36px; height:20px; border-radius:10px; border:1px solid var(--border2); background:var(--bg); cursor:pointer; position:relative; transition:background .2s; flex-shrink:0; }
+    .theme-toggle::after { content:''; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:var(--accent); transition:transform .2s; }
+    [data-theme="light"] .theme-toggle::after { transform:translateX(16px); }
+
+    /* ── LAYOUT ── */
+    .container { max-width:1440px; margin:0 auto; padding:18px 24px; }
+    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    .mt { margin-top:14px; }
+
+    /* ── STAT CARDS ── */
+    .stat-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:14px; }
+    .stat { background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:14px 16px; position:relative; box-shadow:0 1px 3px var(--shadow); }
+    .stat::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; border-radius:6px 6px 0 0; }
+    .stat.s-hot::before    { background:var(--hot); }
+    .stat.s-accent::before { background:var(--accent); }
+    .stat.s-green::before  { background:var(--green); }
+    .stat.s-cold::before   { background:var(--cold); }
+    .stat-label { font-family:'Source Code Pro',monospace; font-size:8px; color:var(--muted); text-transform:uppercase; letter-spacing:.12em; margin-bottom:7px; }
+    .stat-val   { font-family:'Source Code Pro',monospace; font-size:26px; font-weight:500; line-height:1; }
+    .stat-val.hot { color:var(--hot); } .stat-val.cold { color:var(--cold); }
+    .stat-val.acc { color:var(--accent); } .stat-val.grn { color:var(--green); }
+    .stat-sub { font-family:'Source Code Pro',monospace; font-size:8px; color:var(--muted); margin-top:5px; }
+
+    /* ── PANELS ── */
+    .panel { background:var(--panel); border:1px solid var(--border); border-radius:6px; overflow:hidden; box-shadow:0 1px 3px var(--shadow); }
+    .panel-head {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:9px 16px; border-bottom:1px solid var(--border);
+      background:rgba(128,128,128,.03); min-height:38px;
+    }
+    .panel-head-left { display:flex; align-items:center; gap:8px; }
+    .panel-title { font-family:'Source Code Pro',monospace; font-size:10px; font-weight:500; letter-spacing:.1em; text-transform:uppercase; color:var(--text); }
+    .panel-sub   { font-family:'Source Code Pro',monospace; font-size:8px; color:var(--muted); }
+    .panel-body  { padding:0; }
+
+    /* ── EXPLAIN BUTTON ── */
+    .explain-btn {
+      width:20px; height:20px; border-radius:50%;
+      border:1px solid var(--border2); background:transparent;
+      color:var(--muted); font-family:'Source Code Pro',monospace;
+      font-size:11px; font-weight:600; cursor:pointer;
+      display:inline-flex; align-items:center; justify-content:center;
+      transition:all .15s; flex-shrink:0; line-height:1;
+    }
+    .explain-btn:hover { border-color:var(--accent); color:var(--accent); background:rgba(240,165,0,.08); }
+    .explain-btn.loading { border-color:var(--accent); color:var(--accent); animation:spin .8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* ── EXPLAIN PANEL ── */
+    .explain-panel {
+      border-top:1px solid var(--explain-border);
+      background:var(--explain-bg);
+      padding:12px 16px;
+      display:none;
+      position:relative;
+    }
+    .explain-panel.placeholder {
+      background:var(--explain-ph-bg);
+      border-color:var(--explain-ph-border);
+    }
+    .explain-panel.visible { display:block; }
+    .explain-close {
+      position:absolute; top:8px; right:10px;
+      background:transparent; border:none;
+      color:var(--muted); font-size:14px; cursor:pointer; line-height:1;
+      padding:2px 5px; border-radius:3px; transition:color .15s;
+    }
+    .explain-close:hover { color:var(--text); }
+    .explain-label {
+      font-family:'Source Code Pro',monospace; font-size:8px;
+      text-transform:uppercase; letter-spacing:.12em;
+      color:var(--explain-text); margin-bottom:7px; opacity:.7;
+    }
+    .explain-text {
+      font-size:12px; line-height:1.7; color:var(--explain-text);
+      white-space:pre-wrap;
+    }
+    .explain-panel.placeholder .explain-text { color:var(--explain-ph-text); font-size:11px; }
+    .explain-cursor { display:inline-block; width:2px; height:13px; background:var(--explain-text); vertical-align:middle; animation:blink .8s step-end infinite; margin-left:1px; }
+    @keyframes blink { 50% { opacity:0; } }
+
+    /* ── CONTROLS ── */
+    .ctrls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .ctrl-label { font-family:'Source Code Pro',monospace; font-size:8px; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; }
+    select { background:var(--bg); border:1px solid var(--border2); border-radius:4px; color:var(--text); font-family:'Source Code Pro',monospace; font-size:10px; padding:3px 7px; outline:none; cursor:pointer; transition:border-color .15s; }
+    select:focus { border-color:var(--accent); }
+    .btn { background:transparent; border:1px solid var(--border2); border-radius:4px; color:var(--muted); font-family:'Source Code Pro',monospace; font-size:9px; padding:3px 9px; cursor:pointer; transition:all .15s; text-transform:uppercase; letter-spacing:.06em; }
+    .btn.active { border-color:var(--accent); color:var(--accent); background:rgba(240,165,0,.08); }
+    .btn:not(.active):hover { border-color:var(--dim); color:var(--text); }
+
+    .mode-tabs { display:flex; border:1px solid var(--border2); border-radius:4px; overflow:hidden; }
+    .mode-tab { padding:3px 10px; font-family:'Source Code Pro',monospace; font-size:9px; text-transform:uppercase; letter-spacing:.06em; cursor:pointer; border:none; background:transparent; color:var(--muted); border-right:1px solid var(--border2); transition:all .15s; }
+    .mode-tab:last-child { border-right:none; }
+    .mode-tab.active { background:var(--accent); color:#fff; }
+    .mode-tab:not(.active):hover { background:rgba(128,128,128,.08); color:var(--text); }
+
+    .yr-lbl { font-family:'Source Code Pro',monospace; font-size:17px; font-weight:500; color:var(--accent); min-width:40px; text-align:center; }
+    input[type=range] { width:160px; accent-color:var(--accent); cursor:pointer; vertical-align:middle; }
+
+    .reg-check { display:flex; align-items:center; gap:4px; cursor:pointer; }
+    .reg-check input { accent-color:var(--accent); cursor:pointer; }
+    .reg-check span { font-family:'Source Code Pro',monospace; font-size:9px; color:var(--text); }
+    .terr-note { font-family:'Source Code Pro',monospace; font-size:9px; color:var(--muted); padding:6px 16px; border-top:1px solid var(--border); }
+
+    /* CORR TABLE */
+    .corr-table-wrap { padding:12px 16px; overflow-x:auto; }
+    .corr-table { width:100%; border-collapse:collapse; font-family:'Source Code Pro',monospace; font-size:10px; }
+    .corr-table th { color:var(--muted); font-weight:400; font-size:9px; letter-spacing:.06em; text-transform:uppercase; padding:5px 10px; border-bottom:1px solid var(--border); text-align:center; }
+    .corr-table th:first-child { text-align:left; }
+    .corr-table td { padding:5px 10px; text-align:center; border-bottom:1px solid var(--border); font-size:10px; }
+    .corr-table td:first-child { text-align:left; color:var(--muted); }
+    .corr-table tr:last-child td { border-bottom:none; }
+    .corr-table tr:hover td { background:rgba(128,128,128,.04); }
+
+    .chart-div { width:100%; }
+    .err { color:var(--hot); font-family:'Source Code Pro',monospace; font-size:11px; padding:20px; }
+
+    /* FOOTER */
+    footer { border-top:1px solid var(--border); padding:14px 28px; display:flex; align-items:center; justify-content:space-between; margin-top:8px; }
+    .credits { font-family:'Source Code Pro',monospace; font-size:9px; color:var(--muted); line-height:2; }
+    .credits a { color:var(--accent); text-decoration:none; }
+    .credits a:hover { text-decoration:underline; }
+    .credits strong { color:var(--text); }
+
+    ::-webkit-scrollbar { width:5px; height:5px; }
+    ::-webkit-scrollbar-track { background:var(--bg); }
+    ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:3px; }
+    @media(max-width:960px) { .grid-2{grid-template-columns:1fr;} .stat-row{grid-template-columns:repeat(2,1fr);} }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-dot"></div>
+    <h1>AnomalyWatch <sub>FAO Temperature Change Dataset · 1961–2019</sub></h1>
+  </div>
+  <div class="header-right">
+    <a class="nav-link" href="/dataset/">Dataset Viewer</a>
+    <div class="scope-toggle">
+      <button class="scope-btn active" id="scope-countries" onclick="setScope(false)">Countries</button>
+      <button class="scope-btn" id="scope-all" onclick="setScope(true)">All Territories</button>
+    </div>
+    <div class="theme-wrap">
+      <span class="theme-lbl" id="theme-lbl">Dark</span>
+      <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme"></button>
+    </div>
+    <div class="header-meta">
+      <div>248 areas &middot; 59 years &middot; 17 time periods</div>
+      <div>Baseline <strong>1951–1980</strong> &middot; Unit <strong>&deg;C deviation</strong></div>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="stat-row">
+    <div class="stat s-hot">
+      <div class="stat-label">Hottest Country Anomaly</div>
+      <div class="stat-val hot">+1.93°C</div>
+      <div class="stat-sub">Finland · 2010–19 avg vs 1961–70</div>
+    </div>
+    <div class="stat s-accent">
+      <div class="stat-label">Avg Global Warming Delta</div>
+      <div class="stat-val acc">+1.1°C</div>
+      <div class="stat-sub">1961–70 vs 2010–19 mean</div>
+    </div>
+    <div class="stat s-green">
+      <div class="stat-label">Sovereign Countries</div>
+      <div class="stat-val grn">208</div>
+      <div class="stat-sub">+ 40 territories / dependencies</div>
+    </div>
+    <div class="stat s-cold">
+      <div class="stat-label">Dataset Span</div>
+      <div class="stat-val cold">59 yrs</div>
+      <div class="stat-sub">1961 &rarr; 2019 · annual &amp; monthly</div>
+    </div>
+  </div>
+
+  <!-- ROW 1: Map + Top Warmers -->
+  <div class="grid-2">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-title">World Map</span>
+          <button class="explain-btn" onclick="explain(this,'choropleth')" title="Explain this chart">?</button>
+        </div>
+        <div class="ctrls">
+          <span class="ctrl-label">Year</span>
+          <span class="yr-lbl" id="choro-yr-lbl">2019</span>
+          <input type="range" id="choro-slider" min="{{ year_min }}" max="{{ year_max }}" value="2019">
+        </div>
+      </div>
+      <div class="panel-body"><div class="chart-div" id="choro-div"></div></div>
+      <div class="explain-panel" id="explain-choropleth"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-title">Top Warming Rankings</span>
+          <button class="explain-btn" onclick="explain(this,'top_warmers')" title="Explain this chart">?</button>
+        </div>
+        <div class="ctrls">
+          <span class="ctrl-label">Show</span>
+          <select id="top-n">
+            <option value="10" selected>Top 10</option>
+            <option value="20">Top 20</option>
+            <option value="30">Top 30</option>
+          </select>
+        </div>
+      </div>
+      <div class="panel-body"><div class="chart-div" id="topwarm-div"></div></div>
+      <div class="terr-note" id="terr-note" style="display:none">* denotes territory / dependency, not a sovereign country</div>
+      <div class="explain-panel" id="explain-top_warmers"></div>
+    </div>
+  </div>
+
+  <!-- ROW 2: Time Series + Unified Heatmap -->
+  <div class="grid-2 mt">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-title">Annual Anomaly Time Series</span>
+          <button class="explain-btn" onclick="explain(this,'timeseries')" title="Explain this chart">?</button>
+        </div>
+        <div class="ctrls">
+          <select id="ts-sel">
+            {% for c in countries %}<option value="{{ c }}"{% if c == default_area %} selected{% endif %}>{{ c }}</option>{% endfor %}
+          </select>
+          <button class="btn" id="smooth-btn">Trend Line</button>
+        </div>
+      </div>
+      <div class="panel-body"><div class="chart-div" id="ts-div"></div></div>
+      <div class="explain-panel" id="explain-timeseries"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-title">Heatmap</span>
+          <button class="explain-btn" onclick="explain(this,'heatmap')" title="Explain this chart">?</button>
+        </div>
+        <div class="ctrls">
+          <div class="mode-tabs">
+            <button class="mode-tab active" data-mode="monthly" onclick="setHeatmapMode('monthly')">Monthly</button>
+            <button class="mode-tab"        data-mode="yearly"  onclick="setHeatmapMode('yearly')">Decadal</button>
+            <button class="mode-tab"        data-mode="corr"    onclick="setHeatmapMode('corr')">Correlation</button>
+          </div>
+          <select id="hm-sel">
+            {% for c in countries %}<option value="{{ c }}"{% if c == default_area %} selected{% endif %}>{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="panel-body"><div class="chart-div" id="hm-div"></div></div>
+      <div id="hm-corr-table-wrap" style="display:none">
+        <div class="corr-table-wrap">
+          <table class="corr-table" id="corr-table"></table>
+        </div>
+      </div>
+      <div class="explain-panel" id="explain-heatmap"></div>
+    </div>
+  </div>
+
+  <!-- ROW 3: Regional -->
+  <div class="mt">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-title">Regional Comparison</span>
+          <button class="explain-btn" onclick="explain(this,'regional')" title="Explain this chart">?</button>
+        </div>
+        <div class="ctrls" id="reg-checks"></div>
+      </div>
+      <div class="panel-body"><div class="chart-div" id="regional-div"></div></div>
+      <div class="explain-panel" id="explain-regional"></div>
+    </div>
+  </div>
+
+  <!-- ROW 4: Box Plot -->
+  <div class="mt">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-title">Anomaly Distribution by Decade</span>
+          <button class="explain-btn" onclick="explain(this,'boxplot')" title="Explain this chart">?</button>
+        </div>
+        <div class="ctrls">
+          <span class="panel-sub">Median &amp; spread shift over time &mdash;</span>
+          <select id="box-sel">
+            {% for c in countries %}<option value="{{ c }}"{% if c == default_area %} selected{% endif %}>{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="panel-body"><div class="chart-div" id="box-div"></div></div>
+      <div class="explain-panel" id="explain-boxplot"></div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <div class="credits">
+    <div><strong>Dataset</strong> &nbsp;FAO — Environment Statistics: Temperature Change</div>
+    <div><strong>Kaggle</strong> &nbsp;<a href="https://www.kaggle.com/datasets/sevgisarac/temperature-change" target="_blank">kaggle.com/datasets/sevgisarac/temperature-change</a> &nbsp;&middot;&nbsp; Published by <strong>Sevgi SY</strong> (sevgisarac)</div>
+  </div>
+  <div class="credits" style="text-align:right">
+    <div>Original source: <strong>FAOSTAT</strong> &middot; fao.org/faostat</div>
+    <div>Baseline period: <strong>1951–1980</strong> &middot; Unit: <strong>&deg;C deviation from baseline</strong></div>
+  </div>
+</footer>
+
+<script>
+const CFG = {responsive:true, displayModeBar:false};
+const COUNTRIES_ONLY = {{ countries|safe }};
+const ALL_AREAS      = {{ all_areas|safe }};
+let includeTerritories = false;
+let smoothOn    = false;
+let heatmapMode = 'monthly';
+let isDark      = true;
+
+// ── THEME ──
+function toggleTheme() {
+  isDark = !isDark;
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  document.getElementById('theme-lbl').textContent = isDark ? 'Dark' : 'Light';
+  reloadAllCharts();
+}
+function plotlyTheme() {
+  return isDark
+    ? { paper:'rgba(0,0,0,0)', plot:'rgba(0,0,0,0)', font:'#c9d1d9', grid:'#21262d' }
+    : { paper:'rgba(0,0,0,0)', plot:'rgba(0,0,0,0)', font:'#24292f', grid:'#e0e0e0' };
+}
+
+// ── SCOPE ──
+function setScope(terr) {
+  includeTerritories = terr;
+  document.getElementById('scope-countries').classList.toggle('active', !terr);
+  document.getElementById('scope-all').classList.toggle('active', terr);
+  document.getElementById('terr-note').style.display = terr ? 'block' : 'none';
+  const list = terr ? ALL_AREAS : COUNTRIES_ONLY;
+  ['ts-sel','hm-sel','box-sel'].forEach(id => populateSel(id, list, document.getElementById(id).value));
+  reloadAllCharts();
+}
+function populateSel(id, list, current) {
+  const sel = document.getElementById(id);
+  sel.innerHTML = '';
+  list.forEach(c => {
+    const o = document.createElement('option');
+    o.value=c; o.textContent=c;
+    if(c===current) o.selected=true;
+    sel.appendChild(o);
+  });
+}
+
+// ── FETCH & DRAW ──
+async function draw(divId, url) {
+  try {
+    const r = await fetch(url);
+    if(r.status === 429){
+      document.getElementById(divId).innerHTML='<div class="err" style="color:var(--accent)">Rate limit reached — please wait a moment before refreshing.</div>';
+      return null;
+    }
+    if(!r.ok){ document.getElementById(divId).innerHTML='<div class="err">HTTP '+r.status+'</div>'; return null; }
+    const j = await r.json();
+    if(j.error){ document.getElementById(divId).innerHTML='<div class="err">'+j.error+'</div>'; return null; }
+    const t = plotlyTheme();
+    const layout = Object.assign({}, j.chart.layout, {
+      paper_bgcolor:t.paper, plot_bgcolor:t.plot,
+      font: Object.assign({}, j.chart.layout.font, {color:t.font}),
+    });
+    if(layout.xaxis) layout.xaxis=Object.assign({},layout.xaxis,{gridcolor:t.grid});
+    if(layout.yaxis) layout.yaxis=Object.assign({},layout.yaxis,{gridcolor:t.grid});
+    if(layout.geo)   layout.geo=Object.assign({},layout.geo,{
+      bgcolor:t.paper,
+      landcolor: isDark?'#161b22':'#e8edf2',
+      oceancolor:isDark?'#0d1117':'#c8d8e8',
+    });
+    Plotly.newPlot(divId, j.chart.data, layout, CFG);
+    return j;
+  } catch(e) {
+    document.getElementById(divId).innerHTML='<div class="err">'+e+'</div>';
+    return null;
+  }
+}
+
+// ── EXPLAIN ──
+async function explain(btn, chartId) {
+  const panelId = 'explain-' + chartId;
+  const panel   = document.getElementById(panelId);
+
+  if(panel.classList.contains('visible')) {
+    panel.classList.remove('visible');
+    return;
+  }
+
+  const params = new URLSearchParams({ chart: chartId });
+  if(chartId==='timeseries')  { params.set('area', document.getElementById('ts-sel').value); params.set('smooth', smoothOn); }
+  else if(chartId==='choropleth') { params.set('year', document.getElementById('choro-slider').value); params.set('scope', includeTerritories?'all territories':'sovereign countries'); }
+  else if(chartId==='top_warmers'){ params.set('n', document.getElementById('top-n').value); params.set('scope', includeTerritories?'territories and countries':'sovereign countries'); }
+  else if(chartId==='heatmap')    { params.set('chart','heatmap_'+heatmapMode); params.set('area', document.getElementById('hm-sel').value); params.set('mode', heatmapMode); }
+  else if(chartId==='regional')   { params.set('regions', [...document.querySelectorAll('#reg-checks input:checked')].map(i=>i.value).join(', ')); }
+  else if(chartId==='boxplot')    { params.set('area', document.getElementById('box-sel').value); }
+
+  panel.innerHTML = `<button class="explain-close" onclick="closeExplain('${panelId}')">&#x2715;</button><div class="explain-label">AI Explanation &amp; Prediction &mdash; Groq / Llama 3</div><div class="explain-text" id="${panelId}-text"><span class="explain-cursor"></span></div>`;
+  panel.classList.remove('placeholder');
+  panel.classList.add('visible');
+  btn.classList.add('loading');
+
+  const textEl = document.getElementById(panelId+'-text');
+
+  try {
+    const res = await fetch('/api/explain/?'+params);
+    if(res.status === 429){
+      panel.classList.add('placeholder');
+      textEl.textContent = 'Rate limit reached — you can make 10 explanation requests per minute.\n\nThis protects the Groq API quota. Please wait a moment and try again.';
+      btn.classList.remove('loading'); return;
+    }
+    const ct  = res.headers.get('content-type')||'';
+
+    if(ct.includes('application/json')) {
+      const data = await res.json();
+      if(data.placeholder) { panel.classList.add('placeholder'); }
+      textEl.textContent = data.text || data.error || 'No response.';
+    } else {
+      // streaming text/plain
+      const reader  = res.body.getReader();
+      const decoder = new TextDecoder();
+      let acc = '';
+      textEl.innerHTML = '';
+      while(true) {
+        const {done,value} = await reader.read();
+        if(done) break;
+        acc += decoder.decode(value,{stream:true});
+        textEl.textContent = acc;
+        panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+      }
+    }
+  } catch(e) {
+    textEl.textContent = 'Error: '+e;
+  }
+  btn.classList.remove('loading');
+}
+
+function closeExplain(panelId) {
+  document.getElementById(panelId).classList.remove('visible');
+}
+
+// ── CHARTS ──
+let choroTimer;
+document.getElementById('choro-slider').addEventListener('input', function(){
+  document.getElementById('choro-yr-lbl').textContent = this.value;
+  clearTimeout(choroTimer);
+  choroTimer = setTimeout(loadChoro, 300);
+});
+function loadChoro()      { draw('choro-div','/api/choropleth/?year='+document.getElementById('choro-slider').value+'&territories='+includeTerritories); }
+function loadTopWarmers() { draw('topwarm-div','/api/top-warmers/?n='+document.getElementById('top-n').value+'&territories='+includeTerritories); }
+document.getElementById('top-n').addEventListener('change',loadTopWarmers);
+
+document.getElementById('smooth-btn').addEventListener('click',function(){
+  smoothOn=!smoothOn; this.classList.toggle('active',smoothOn); loadTS();
+});
+document.getElementById('ts-sel').addEventListener('change',function(){ syncSelects(this.value); loadTS(); loadHM(); loadBox(); });
+function loadTS() { draw('ts-div','/api/timeseries/?area='+encodeURIComponent(document.getElementById('ts-sel').value)+'&smooth='+smoothOn); }
+
+function setHeatmapMode(mode){
+  heatmapMode=mode;
+  document.querySelectorAll('.mode-tab').forEach(t=>t.classList.toggle('active',t.dataset.mode===mode));
+  document.getElementById('hm-sel').style.display=(mode==='corr')?'none':'block';
+  document.getElementById('hm-corr-table-wrap').style.display=(mode==='corr')?'block':'none';
+  loadHM();
+}
+document.getElementById('hm-sel').addEventListener('change',function(){ syncSelects(this.value); loadHM(); loadTS(); loadBox(); });
+async function loadHM(){
+  const c=document.getElementById('hm-sel').value;
+  if(heatmapMode==='monthly')     draw('hm-div','/api/monthly-heatmap/?area='+encodeURIComponent(c));
+  else if(heatmapMode==='yearly') draw('hm-div','/api/heatmap-yearly/?area='+encodeURIComponent(c));
+  else {
+    const j=await draw('hm-div','/api/correlation/');
+    if(!j||!j.table) return;
+    let html='<tr><th></th>'+j.labels.map(l=>'<th>'+l+'</th>').join('')+'</tr>';
+    j.table.forEach(row=>{
+      html+='<tr><td>'+row.region+'</td>';
+      j.labels.forEach(l=>{
+        const v=row[l]; const diag=v>=0.999;
+        const col=v>=0.8?'var(--hot)':v>=0.5?'var(--accent)':'var(--text)';
+        html+='<td style="color:'+col+';font-weight:'+(diag?'600':'400')+'">'+(diag?'1.00':v.toFixed(2))+'</td>';
+      });
+      html+='</tr>';
+    });
+    document.getElementById('corr-table').innerHTML=html;
+  }
+}
+
+document.getElementById('box-sel').addEventListener('change',function(){ syncSelects(this.value); loadBox(); loadTS(); loadHM(); });
+function loadBox() { draw('box-div','/api/boxplot/?area='+encodeURIComponent(document.getElementById('box-sel').value)); }
+
+const DEFAULT_REGIONS=['Africa','Asia','Europe','Americas','Oceania'];
+function buildRegions(){
+  const el=document.getElementById('reg-checks'); el.innerHTML='';
+  DEFAULT_REGIONS.forEach(r=>{
+    const lbl=document.createElement('label'); lbl.className='reg-check';
+    lbl.innerHTML='<input type="checkbox" value="'+r+'" checked> <span>'+r+'</span>';
+    lbl.querySelector('input').addEventListener('change',loadRegional);
+    el.appendChild(lbl);
+  });
+}
+function loadRegional(){
+  const sel=[...document.querySelectorAll('#reg-checks input:checked')].map(i=>i.value);
+  if(!sel.length) return;
+  draw('regional-div','/api/regional-comparison/?'+sel.map(r=>'regions='+encodeURIComponent(r)).join('&'));
+}
+
+function syncSelects(val){
+  ['ts-sel','hm-sel','box-sel'].forEach(id=>{
+    const el=document.getElementById(id);
+    if([...el.options].some(o=>o.value===val)) el.value=val;
+  });
+}
+
+function reloadAllCharts(){ loadChoro(); loadTopWarmers(); loadTS(); loadHM(); loadRegional(); loadBox(); }
+
+buildRegions();
+reloadAllCharts();
+</script>
+</body>
+</html>
